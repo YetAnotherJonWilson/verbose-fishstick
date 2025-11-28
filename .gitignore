@@ -24,3 +24,8 @@ build/
 
 # Test coverage
 coverage/
+
+# Dev notes
+*-guide.md
+*-setup.md
+*-notes.md
