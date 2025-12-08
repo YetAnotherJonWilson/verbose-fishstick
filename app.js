@@ -1,7 +1,6 @@
 import { BrowserOAuthClient } from '@atproto/oauth-client-browser';
 import { Agent } from '@atproto/api';
 
-// Initialize OAuth client
 let oauthClient;
 let session = null;
 
@@ -11,10 +10,7 @@ async function initOAuthClient() {
       handleResolver: 'https://bsky.social',
       clientMetadata: undefined,
     });
-
-    console.log('OAuth client initialized');
   } catch (error) {
-    console.error('Failed to initialize OAuth client:', error);
     showStatus('loginStatus', `Error: ${error.message}`, true);
   }
 }
@@ -24,11 +20,26 @@ initOAuthClient();
 
 // Check for existing session on load
 window.addEventListener('DOMContentLoaded', async () => {
+  // Check both query string and hash fragment
+  const queryParams = new URLSearchParams(window.location.search);
+  const hashParams = new URLSearchParams(window.location.hash.slice(1)); // Remove the '#'
+
+  const isOAuthCallback =
+    queryParams.has('code') ||
+    queryParams.has('error') ||
+    hashParams.has('code') ||
+    hashParams.has('error');
+
+  if (isOAuthCallback) {
+    showLoadingScreen();
+  }
+
   await restoreSession();
 });
 
-// Login button handler
-document.getElementById('loginButton').addEventListener('click', async () => {
+document.getElementById('loginForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+
   const handle = document.getElementById('handleInput').value.trim();
 
   if (!handle) {
@@ -45,7 +56,6 @@ document.getElementById('loginButton').addEventListener('click', async () => {
       signal: new AbortController().signal,
     });
   } catch (error) {
-    console.error('Login error:', error);
     showStatus('loginStatus', `Login failed: ${error.message}`, true);
   }
 });
@@ -64,7 +74,6 @@ document.getElementById('logoutButton').addEventListener('click', async () => {
     showLoginScreen();
     showStatus('loginStatus', 'Signed out successfully');
   } catch (error) {
-    console.error('Logout error:', error);
     showStatus('appStatus', `Logout failed: ${error.message}`, true);
   }
 });
@@ -81,9 +90,11 @@ async function restoreSession() {
       updateUserInfo();
 
       if (result.state) {
-        console.log('User just logged in via OAuth callback');
+        console.log(
+          `${session.sub} was successfully authenticated (state: ${result.state})`
+        );
       } else {
-        console.log('Restored previous session');
+        console.log(`${session.sub} was restored (last active session)`);
       }
     } else {
       showLoginScreen();
@@ -94,16 +105,14 @@ async function restoreSession() {
   }
 }
 
-// Update user info display
 async function updateUserInfo() {
   if (!session) return;
-  console.log('User session:', session);
 
-  // Create an agent to fetch profile info
   const agent = new Agent(session);
 
   try {
-    // Use describeRepo instead - works with basic atproto scope
+    // TODO: Using describeRepo for now to work with basic atproto scope, need to investigate
+    // scopes further for getProfile access (and possibly read/write permissions)
     const repo = await agent.com.atproto.repo.describeRepo({
       repo: session.sub,
     });
@@ -111,7 +120,6 @@ async function updateUserInfo() {
     document.getElementById('userHandle').textContent = repo.data.handle;
     document.getElementById('userDid').textContent = session.sub;
   } catch (error) {
-    console.error('Failed to fetch profile:', error);
     // Fallback: just show DID
     document.getElementById('userHandle').textContent = session.sub;
     document.getElementById('userDid').textContent =
@@ -120,12 +128,20 @@ async function updateUserInfo() {
 }
 
 // UI Helper functions
+function showLoadingScreen() {
+  document.getElementById('loadingSection').classList.add('active');
+  document.getElementById('loginSection').classList.remove('active');
+  document.getElementById('appSection').classList.remove('active');
+}
+
 function showLoginScreen() {
+  document.getElementById('loadingSection').classList.remove('active');
   document.getElementById('loginSection').classList.add('active');
   document.getElementById('appSection').classList.remove('active');
 }
 
 function showAppScreen() {
+  document.getElementById('loadingSection').classList.remove('active');
   document.getElementById('loginSection').classList.remove('active');
   document.getElementById('appSection').classList.add('active');
 }

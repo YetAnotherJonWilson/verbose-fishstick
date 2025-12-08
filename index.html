@@ -10,16 +10,25 @@
     <div class="container">
         <h1>Really Simple Meditation</h1>
 
+        <!-- Loading Section (shown during OAuth callback) -->
+        <div id="loadingSection" class="loading-section">
+            <div class="spinner"></div>
+            <p>Completing sign in...</p>
+        </div>
+
         <!-- Login Section -->
         <div id="loginSection" class="login-section active">
             <p>Sign in with your AT Protocol account (Bluesky, etc.)</p>
-            <input
-                type="text"
-                id="handleInput"
-                placeholder="your-handle.bsky.social"
-                autocomplete="username"
-            />
-            <button id="loginButton">Sign In</button>
+            <form id="loginForm">
+                <input
+                    type="text"
+                    id="handleInput"
+                    placeholder="your-handle.bsky.social"
+                    autocomplete="username"
+                    required
+                />
+                <button type="submit">Sign In</button>
+            </form>
             <div id="loginStatus" class="status" style="display: none;"></div>
         </div>
 
