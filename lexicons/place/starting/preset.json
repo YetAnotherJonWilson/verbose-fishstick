@@ -1,0 +1,57 @@
+{
+  "lexicon": 1,
+  "id": "place.starting.preset",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A user's saved meditation preset",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["name", "duration", "createdAt"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Name of the preset",
+            "maxLength": 100
+          },
+          "duration": {
+            "type": "integer",
+            "description": "Duration of the meditation preset in seconds",
+            "minimum": 0
+          },
+          "soundIntervals": {
+            "type": "array",
+            "description": "Array of sound intervals to play during the meditation",
+            "items": {
+              "type": "ref",
+              "ref": "#soundInterval"
+            }
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime",
+            "description": "When the preset was created"
+          }
+        }
+      }
+    },
+    "soundInterval": {
+      "type": "object",
+      "description": "A sound to play at a specific time during meditation",
+      "required": ["time", "soundType"],
+      "properties": {
+        "time": {
+          "type": "integer",
+          "description": "Time in seconds when the sound should play",
+          "minimum": 0
+        },
+        "soundType": {
+          "type": "string",
+          "description": "Type of sound to play (e.g., 'bell', 'chime', 'gong')",
+          "maxLength": 50
+        }
+      }
+    }
+  }
+}

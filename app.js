@@ -157,3 +157,259 @@ function showStatus(elementId, message, isError = false) {
     statusEl.classList.remove('error');
   }
 }
+
+// === MEDITATION API FUNCTIONS ===
+
+// Helper: Validate session exists
+function ensureSession() {
+  if (!session) {
+    throw new Error('User not logged in. Please sign in first.');
+  }
+  return session;
+}
+
+// Helper: Create agent instance
+function createAgent() {
+  return new Agent(ensureSession());
+}
+
+/**
+ * Create a new meditation session record
+ * @param {number} duration - Duration in seconds (required, must be >= 0)
+ * @param {string} presetId - Optional reference to preset used
+ * @param {string} notes - Optional user notes (max 1000 chars)
+ * @returns {Promise<Object>} Returns { uri, cid, validationStatus }
+ * @throws {Error} If session not logged in or API call fails
+ */
+async function createSession(duration, presetId = null, notes = null) {
+  // Parameter validation
+  if (typeof duration !== 'number' || duration < 0) {
+    throw new Error('Duration must be a non-negative number');
+  }
+
+  if (presetId && typeof presetId !== 'string') {
+    throw new Error('presetId must be a string');
+  }
+
+  if (presetId && presetId.length > 100) {
+    throw new Error('presetId cannot exceed 100 characters');
+  }
+
+  if (notes && typeof notes !== 'string') {
+    throw new Error('notes must be a string');
+  }
+
+  if (notes && notes.length > 1000) {
+    throw new Error('notes cannot exceed 1000 characters');
+  }
+
+  // Build record object
+  const record = {
+    $type: 'place.starting.session',
+    createdAt: new Date().toISOString(),
+    duration: Math.floor(duration),
+  };
+
+  // Add optional fields only if provided
+  if (presetId) {
+    record.presetId = presetId;
+  }
+  if (notes) {
+    record.notes = notes;
+  }
+
+  // Create record via AT Protocol API
+  const agent = createAgent();
+  const response = await agent.com.atproto.repo.createRecord({
+    repo: session.sub,
+    collection: 'place.starting.session',
+    record: record,
+  });
+
+  return {
+    uri: response.data.uri,
+    cid: response.data.cid,
+    validationStatus: response.data.validationStatus,
+  };
+}
+
+/**
+ * Create a new meditation preset record
+ * @param {string} name - Preset name (required, max 100 chars)
+ * @param {number} duration - Duration in seconds (required, must be >= 0)
+ * @param {Array} soundIntervals - Optional array of { time, soundType } objects
+ * @returns {Promise<Object>} Returns { uri, cid, validationStatus }
+ * @throws {Error} If validation fails or API call fails
+ */
+async function createPreset(name, duration, soundIntervals = null) {
+  // Parameter validation
+  if (!name || typeof name !== 'string') {
+    throw new Error('name is required and must be a string');
+  }
+
+  if (name.length > 100) {
+    throw new Error('name cannot exceed 100 characters');
+  }
+
+  if (typeof duration !== 'number' || duration < 0) {
+    throw new Error('duration must be a non-negative number');
+  }
+
+  // Validate sound intervals if provided
+  if (soundIntervals) {
+    if (!Array.isArray(soundIntervals)) {
+      throw new Error('soundIntervals must be an array');
+    }
+
+    for (let i = 0; i < soundIntervals.length; i++) {
+      const interval = soundIntervals[i];
+
+      if (typeof interval.time !== 'number' || interval.time < 0) {
+        throw new Error(
+          `soundIntervals[${i}].time must be a non-negative number`
+        );
+      }
+
+      if (!interval.soundType || typeof interval.soundType !== 'string') {
+        throw new Error(
+          `soundIntervals[${i}].soundType is required and must be a string`
+        );
+      }
+
+      if (interval.soundType.length > 50) {
+        throw new Error(
+          `soundIntervals[${i}].soundType cannot exceed 50 characters`
+        );
+      }
+
+      if (interval.time > duration) {
+        throw new Error(
+          `soundIntervals[${i}].time cannot be later than preset duration`
+        );
+      }
+    }
+  }
+
+  // Build record object
+  const record = {
+    $type: 'place.starting.preset',
+    name: name,
+    duration: Math.floor(duration),
+    createdAt: new Date().toISOString(),
+  };
+
+  // Add sound intervals if provided
+  if (soundIntervals && soundIntervals.length > 0) {
+    record.soundIntervals = soundIntervals;
+  }
+
+  // Create record via AT Protocol API
+  const agent = createAgent();
+  const response = await agent.com.atproto.repo.createRecord({
+    repo: session.sub,
+    collection: 'place.starting.preset',
+    record: record,
+  });
+
+  return {
+    uri: response.data.uri,
+    cid: response.data.cid,
+    validationStatus: response.data.validationStatus,
+  };
+}
+
+/**
+ * Retrieve all meditation sessions with pagination support
+ * @param {Object} options - Query options
+ * @param {number} options.limit - Number of records to return (1-100, default 50)
+ * @param {string} options.cursor - Pagination cursor from previous request
+ * @param {boolean} options.reverse - Reverse order of results (default false)
+ * @returns {Promise<Object>} Returns { sessions, cursor, total }
+ * @throws {Error} If API call fails
+ */
+async function getSessions(options = {}) {
+  const { limit = 50, cursor = null, reverse = false } = options;
+
+  // Validate pagination parameters
+  if (limit < 1 || limit > 100) {
+    throw new Error('limit must be between 1 and 100');
+  }
+
+  ensureSession();
+  const agent = createAgent();
+
+  const queryParams = {
+    repo: session.sub,
+    collection: 'place.starting.session',
+    limit: limit,
+    reverse: reverse,
+  };
+
+  if (cursor) {
+    queryParams.cursor = cursor;
+  }
+
+  const response = await agent.com.atproto.repo.listRecords(queryParams);
+
+  // Transform response to expose relevant data
+  return {
+    sessions: response.data.records.map((record) => ({
+      uri: record.uri,
+      cid: record.cid,
+      createdAt: record.value.createdAt,
+      duration: record.value.duration,
+      presetId: record.value.presetId || null,
+      notes: record.value.notes || null,
+    })),
+    cursor: response.data.cursor || null,
+    total: response.data.records.length,
+  };
+}
+
+/**
+ * Retrieve all meditation presets
+ * @param {Object} options - Query options
+ * @param {number} options.limit - Number of records to return (1-100, default 50)
+ * @param {string} options.cursor - Pagination cursor from previous request
+ * @param {boolean} options.reverse - Reverse order of results (default false)
+ * @returns {Promise<Object>} Returns { presets, cursor, total }
+ * @throws {Error} If API call fails
+ */
+async function getPresets(options = {}) {
+  const { limit = 50, cursor = null, reverse = false } = options;
+
+  // Validate pagination parameters
+  if (limit < 1 || limit > 100) {
+    throw new Error('limit must be between 1 and 100');
+  }
+
+  ensureSession();
+  const agent = createAgent();
+
+  const queryParams = {
+    repo: session.sub,
+    collection: 'place.starting.preset',
+    limit: limit,
+    reverse: reverse,
+  };
+
+  if (cursor) {
+    queryParams.cursor = cursor;
+  }
+
+  const response = await agent.com.atproto.repo.listRecords(queryParams);
+
+  // Transform response to expose relevant data
+  return {
+    presets: response.data.records.map((record) => ({
+      uri: record.uri,
+      cid: record.cid,
+      name: record.value.name,
+      duration: record.value.duration,
+      createdAt: record.value.createdAt,
+      soundIntervals: record.value.soundIntervals || [],
+    })),
+    cursor: response.data.cursor || null,
+    total: response.data.records.length,
+  };
+}

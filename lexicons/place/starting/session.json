@@ -1,0 +1,37 @@
+{
+  "lexicon": 1,
+  "id": "place.starting.session",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A completed meditation session",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["createdAt", "duration"],
+        "properties": {
+          "createdAt": {
+            "type": "string",
+            "format": "datetime",
+            "description": "When the session was created"
+          },
+          "duration": {
+            "type": "integer",
+            "description": "Duration of the meditation session in seconds",
+            "minimum": 0
+          },
+          "presetId": {
+            "type": "string",
+            "description": "Optional reference to the preset used for this session",
+            "maxLength": 100
+          },
+          "notes": {
+            "type": "string",
+            "description": "Optional user notes about the session",
+            "maxLength": 1000
+          }
+        }
+      }
+    }
+  }
+}
