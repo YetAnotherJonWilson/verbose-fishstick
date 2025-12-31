@@ -1,17 +1,77 @@
-import { BrowserOAuthClient } from '@atproto/oauth-client-browser';
+import {
+  BrowserOAuthClient,
+  OAuthSession,
+  buildLoopbackClientId,
+} from '@atproto/oauth-client-browser';
 import { Agent } from '@atproto/api';
+import { atprotoLoopbackClientMetadata } from '@atproto/oauth-types';
 
-let oauthClient;
-let session = null;
+// Type definitions
+interface SoundInterval {
+  time: number;
+  soundType: string;
+}
 
-async function initOAuthClient() {
+interface PaginationOptions {
+  limit?: number;
+  cursor?: string | null;
+  reverse?: boolean;
+}
+
+interface MeditationSessionData {
+  uri: string;
+  cid: string;
+  createdAt: string;
+  duration: number;
+  presetId: string | null;
+  notes: string | null;
+}
+
+interface MeditationSessionsResponse {
+  meditationSessions: MeditationSessionData[];
+  cursor: string | null;
+  total: number;
+}
+
+interface PresetData {
+  uri: string;
+  cid: string;
+  name: string;
+  duration: number;
+  createdAt: string;
+  soundIntervals: SoundInterval[];
+}
+
+interface PresetsResponse {
+  presets: PresetData[];
+  cursor: string | null;
+  total: number;
+}
+
+interface CreateRecordResponse {
+  uri: string;
+  cid: string;
+  validationStatus?: string;
+}
+
+// Global variables
+let oauthClient: BrowserOAuthClient;
+let session: OAuthSession | null = null;
+
+async function initOAuthClient(): Promise<void> {
   try {
     oauthClient = new BrowserOAuthClient({
       handleResolver: 'https://bsky.social',
-      clientMetadata: undefined,
+      clientMetadata: atprotoLoopbackClientMetadata(
+        `http://localhost?${new URLSearchParams([
+          ['redirect_uri', `http://127.0.0.1:8080`],
+          ['scope', `atproto transition:generic`],
+        ])}`
+      ),
     });
   } catch (error) {
-    showStatus('loginStatus', `Error: ${error.message}`, true);
+    const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+    showStatus('loginStatus', `Error: ${errorMsg}`, true);
   }
 }
 
@@ -37,31 +97,37 @@ window.addEventListener('DOMContentLoaded', async () => {
   await restoreSession();
 });
 
-document.getElementById('loginForm').addEventListener('submit', async (e) => {
-  e.preventDefault();
+document
+  .getElementById('loginForm')!
+  .addEventListener('submit', async (e: Event) => {
+    e.preventDefault();
 
-  const handle = document.getElementById('handleInput').value.trim();
+    const handleInput = document.getElementById(
+      'handleInput'
+    ) as HTMLInputElement;
+    const handle = handleInput.value.trim();
 
-  if (!handle) {
-    showStatus('loginStatus', 'Please enter your handle', true);
-    return;
-  }
+    if (!handle) {
+      showStatus('loginStatus', 'Please enter your handle', true);
+      return;
+    }
 
-  try {
-    showStatus('loginStatus', 'Redirecting to sign in...');
+    try {
+      showStatus('loginStatus', 'Redirecting to sign in...');
 
-    // Start OAuth flow - this will redirect the user
-    await oauthClient.signIn(handle, {
-      state: JSON.stringify({ returnTo: window.location.href }),
-      signal: new AbortController().signal,
-    });
-  } catch (error) {
-    showStatus('loginStatus', `Login failed: ${error.message}`, true);
-  }
-});
+      // Start OAuth flow with granular permissions for our custom collections
+      await oauthClient.signIn(handle, {
+        state: JSON.stringify({ returnTo: window.location.href }),
+        signal: new AbortController().signal,
+      });
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+      showStatus('loginStatus', `Login failed: ${errorMsg}`, true);
+    }
+  });
 
 // Logout button handler
-document.getElementById('logoutButton').addEventListener('click', async () => {
+document.getElementById('logoutButton')!.addEventListener('click', async () => {
   try {
     if (session) {
       await oauthClient.revoke(session.sub);
@@ -74,12 +140,13 @@ document.getElementById('logoutButton').addEventListener('click', async () => {
     showLoginScreen();
     showStatus('loginStatus', 'Signed out successfully');
   } catch (error) {
-    showStatus('appStatus', `Logout failed: ${error.message}`, true);
+    const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+    showStatus('appStatus', `Logout failed: ${errorMsg}`, true);
   }
 });
 
 // Restore session from storage
-async function restoreSession() {
+async function restoreSession(): Promise<void> {
   try {
     // Try to initialize/restore the session
     const result = await oauthClient.init();
@@ -105,7 +172,7 @@ async function restoreSession() {
   }
 }
 
-async function updateUserInfo() {
+async function updateUserInfo(): Promise<void> {
   if (!session) return;
 
   const agent = new Agent(session);
@@ -117,37 +184,46 @@ async function updateUserInfo() {
       repo: session.sub,
     });
 
-    document.getElementById('userHandle').textContent = repo.data.handle;
-    document.getElementById('userDid').textContent = session.sub;
+    const userHandleEl = document.getElementById('userHandle') as HTMLElement;
+    const userDidEl = document.getElementById('userDid') as HTMLElement;
+
+    userHandleEl.textContent = repo.data.handle;
+    userDidEl.textContent = session.sub;
   } catch (error) {
     // Fallback: just show DID
-    document.getElementById('userHandle').textContent = session.sub;
-    document.getElementById('userDid').textContent =
-      '(handle unavailable in loopback mode)';
+    const userHandleEl = document.getElementById('userHandle') as HTMLElement;
+    const userDidEl = document.getElementById('userDid') as HTMLElement;
+
+    userHandleEl.textContent = session.sub;
+    userDidEl.textContent = '(handle unavailable in loopback mode)';
   }
 }
 
 // UI Helper functions
-function showLoadingScreen() {
-  document.getElementById('loadingSection').classList.add('active');
-  document.getElementById('loginSection').classList.remove('active');
-  document.getElementById('appSection').classList.remove('active');
+function showLoadingScreen(): void {
+  document.getElementById('loadingSection')!.classList.add('active');
+  document.getElementById('loginSection')!.classList.remove('active');
+  document.getElementById('appSection')!.classList.remove('active');
 }
 
-function showLoginScreen() {
-  document.getElementById('loadingSection').classList.remove('active');
-  document.getElementById('loginSection').classList.add('active');
-  document.getElementById('appSection').classList.remove('active');
+function showLoginScreen(): void {
+  document.getElementById('loadingSection')!.classList.remove('active');
+  document.getElementById('loginSection')!.classList.add('active');
+  document.getElementById('appSection')!.classList.remove('active');
 }
 
-function showAppScreen() {
-  document.getElementById('loadingSection').classList.remove('active');
-  document.getElementById('loginSection').classList.remove('active');
-  document.getElementById('appSection').classList.add('active');
+function showAppScreen(): void {
+  document.getElementById('loadingSection')!.classList.remove('active');
+  document.getElementById('loginSection')!.classList.remove('active');
+  document.getElementById('appSection')!.classList.add('active');
 }
 
-function showStatus(elementId, message, isError = false) {
-  const statusEl = document.getElementById(elementId);
+function showStatus(
+  elementId: string,
+  message: string,
+  isError: boolean = false
+): void {
+  const statusEl = document.getElementById(elementId) as HTMLElement;
   statusEl.textContent = message;
   statusEl.style.display = 'block';
 
@@ -161,7 +237,7 @@ function showStatus(elementId, message, isError = false) {
 // === MEDITATION API FUNCTIONS ===
 
 // Helper: Validate session exists
-function ensureSession() {
+function ensureSession(): OAuthSession {
   if (!session) {
     throw new Error('User not logged in. Please sign in first.');
   }
@@ -169,7 +245,7 @@ function ensureSession() {
 }
 
 // Helper: Create agent instance
-function createAgent() {
+function createAgent(): Agent {
   return new Agent(ensureSession());
 }
 
@@ -178,10 +254,14 @@ function createAgent() {
  * @param {number} duration - Duration in seconds (required, must be >= 0)
  * @param {string} presetId - Optional reference to preset used
  * @param {string} notes - Optional user notes (max 1000 chars)
- * @returns {Promise<Object>} Returns { uri, cid, validationStatus }
- * @throws {Error} If session not logged in or API call fails
+ * @returns {Promise<CreateRecordResponse>} Returns { uri, cid, validationStatus }
+ * @throws {Error} If user not logged in or API call fails
  */
-async function createSession(duration, presetId = null, notes = null) {
+async function createMeditationSession(
+  duration: number,
+  presetId: string | null = null,
+  notes: string | null = null
+): Promise<CreateRecordResponse> {
   // Parameter validation
   if (typeof duration !== 'number' || duration < 0) {
     throw new Error('Duration must be a non-negative number');
@@ -204,8 +284,8 @@ async function createSession(duration, presetId = null, notes = null) {
   }
 
   // Build record object
-  const record = {
-    $type: 'place.starting.session',
+  const record: Record<string, unknown> = {
+    $type: 'place.starting.meditationSession',
     createdAt: new Date().toISOString(),
     duration: Math.floor(duration),
   };
@@ -221,8 +301,8 @@ async function createSession(duration, presetId = null, notes = null) {
   // Create record via AT Protocol API
   const agent = createAgent();
   const response = await agent.com.atproto.repo.createRecord({
-    repo: session.sub,
-    collection: 'place.starting.session',
+    repo: session!.sub,
+    collection: 'place.starting.meditationSession',
     record: record,
   });
 
@@ -237,11 +317,15 @@ async function createSession(duration, presetId = null, notes = null) {
  * Create a new meditation preset record
  * @param {string} name - Preset name (required, max 100 chars)
  * @param {number} duration - Duration in seconds (required, must be >= 0)
- * @param {Array} soundIntervals - Optional array of { time, soundType } objects
- * @returns {Promise<Object>} Returns { uri, cid, validationStatus }
+ * @param {SoundInterval[]} soundIntervals - Optional array of { time, soundType } objects
+ * @returns {Promise<CreateRecordResponse>} Returns { uri, cid, validationStatus }
  * @throws {Error} If validation fails or API call fails
  */
-async function createPreset(name, duration, soundIntervals = null) {
+async function createPreset(
+  name: string,
+  duration: number,
+  soundIntervals: SoundInterval[] | null = null
+): Promise<CreateRecordResponse> {
   // Parameter validation
   if (!name || typeof name !== 'string') {
     throw new Error('name is required and must be a string');
@@ -291,7 +375,7 @@ async function createPreset(name, duration, soundIntervals = null) {
   }
 
   // Build record object
-  const record = {
+  const record: Record<string, unknown> = {
     $type: 'place.starting.preset',
     name: name,
     duration: Math.floor(duration),
@@ -306,7 +390,7 @@ async function createPreset(name, duration, soundIntervals = null) {
   // Create record via AT Protocol API
   const agent = createAgent();
   const response = await agent.com.atproto.repo.createRecord({
-    repo: session.sub,
+    repo: session!.sub,
     collection: 'place.starting.preset',
     record: record,
   });
@@ -320,14 +404,13 @@ async function createPreset(name, duration, soundIntervals = null) {
 
 /**
  * Retrieve all meditation sessions with pagination support
- * @param {Object} options - Query options
- * @param {number} options.limit - Number of records to return (1-100, default 50)
- * @param {string} options.cursor - Pagination cursor from previous request
- * @param {boolean} options.reverse - Reverse order of results (default false)
- * @returns {Promise<Object>} Returns { sessions, cursor, total }
+ * @param {PaginationOptions} options - Query options
+ * @returns {Promise<MeditationSessionsResponse>} Returns { meditationSessions, cursor, total }
  * @throws {Error} If API call fails
  */
-async function getSessions(options = {}) {
+async function getMeditationSessions(
+  options: PaginationOptions = {}
+): Promise<MeditationSessionsResponse> {
   const { limit = 50, cursor = null, reverse = false } = options;
 
   // Validate pagination parameters
@@ -339,27 +422,26 @@ async function getSessions(options = {}) {
   const agent = createAgent();
 
   const queryParams = {
-    repo: session.sub,
-    collection: 'place.starting.session',
+    repo: session!.sub,
+    collection: 'place.starting.meditationSession',
     limit: limit,
     reverse: reverse,
+    ...(cursor && { cursor }),
   };
-
-  if (cursor) {
-    queryParams.cursor = cursor;
-  }
 
   const response = await agent.com.atproto.repo.listRecords(queryParams);
 
   // Transform response to expose relevant data
   return {
-    sessions: response.data.records.map((record) => ({
+    meditationSessions: response.data.records.map((record) => ({
       uri: record.uri,
       cid: record.cid,
-      createdAt: record.value.createdAt,
-      duration: record.value.duration,
-      presetId: record.value.presetId || null,
-      notes: record.value.notes || null,
+      createdAt: (record.value as Record<string, unknown>).createdAt as string,
+      duration: (record.value as Record<string, unknown>).duration as number,
+      presetId:
+        ((record.value as Record<string, unknown>).presetId as string) || null,
+      notes:
+        ((record.value as Record<string, unknown>).notes as string) || null,
     })),
     cursor: response.data.cursor || null,
     total: response.data.records.length,
@@ -368,14 +450,13 @@ async function getSessions(options = {}) {
 
 /**
  * Retrieve all meditation presets
- * @param {Object} options - Query options
- * @param {number} options.limit - Number of records to return (1-100, default 50)
- * @param {string} options.cursor - Pagination cursor from previous request
- * @param {boolean} options.reverse - Reverse order of results (default false)
- * @returns {Promise<Object>} Returns { presets, cursor, total }
+ * @param {PaginationOptions} options - Query options
+ * @returns {Promise<PresetsResponse>} Returns { presets, cursor, total }
  * @throws {Error} If API call fails
  */
-async function getPresets(options = {}) {
+async function getPresets(
+  options: PaginationOptions = {}
+): Promise<PresetsResponse> {
   const { limit = 50, cursor = null, reverse = false } = options;
 
   // Validate pagination parameters
@@ -387,15 +468,12 @@ async function getPresets(options = {}) {
   const agent = createAgent();
 
   const queryParams = {
-    repo: session.sub,
+    repo: session!.sub,
     collection: 'place.starting.preset',
     limit: limit,
     reverse: reverse,
+    ...(cursor && { cursor }),
   };
-
-  if (cursor) {
-    queryParams.cursor = cursor;
-  }
 
   const response = await agent.com.atproto.repo.listRecords(queryParams);
 
@@ -404,10 +482,12 @@ async function getPresets(options = {}) {
     presets: response.data.records.map((record) => ({
       uri: record.uri,
       cid: record.cid,
-      name: record.value.name,
-      duration: record.value.duration,
-      createdAt: record.value.createdAt,
-      soundIntervals: record.value.soundIntervals || [],
+      name: (record.value as Record<string, unknown>).name as string,
+      duration: (record.value as Record<string, unknown>).duration as number,
+      createdAt: (record.value as Record<string, unknown>).createdAt as string,
+      soundIntervals:
+        ((record.value as Record<string, unknown>)
+          .soundIntervals as SoundInterval[]) || [],
     })),
     cursor: response.data.cursor || null,
     total: response.data.records.length,

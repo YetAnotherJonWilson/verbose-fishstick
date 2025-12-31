@@ -1,6 +1,6 @@
 {
   "lexicon": 1,
-  "id": "place.starting.session",
+  "id": "place.starting.meditationSession",
   "defs": {
     "main": {
       "type": "record",
@@ -13,7 +13,7 @@
           "createdAt": {
             "type": "string",
             "format": "datetime",
-            "description": "When the session was created"
+            "description": "When the meditation session was created"
           },
           "duration": {
             "type": "integer",
@@ -22,12 +22,12 @@
           },
           "presetId": {
             "type": "string",
-            "description": "Optional reference to the preset used for this session",
+            "description": "Optional reference to the preset used for this meditation session",
             "maxLength": 100
           },
           "notes": {
             "type": "string",
-            "description": "Optional user notes about the session",
+            "description": "Optional user notes about the meditation session",
             "maxLength": 1000
           }
         }

@@ -22,11 +22,13 @@
   },
   "homepage": "https://github.com/YetAnotherJonWilson/verbose-fishstick#readme",
   "dependencies": {
-    "@atproto/api": "^0.18.1",
+    "@atproto/api": "^0.18.8",
     "@atproto/lexicon": "^0.5.1",
     "@atproto/oauth-client-browser": "^0.3.35"
   },
   "devDependencies": {
+    "@types/node": "^25.0.3",
+    "typescript": "^5.9.3",
     "vite": "^7.2.4"
   }
 }
