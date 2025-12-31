@@ -78,8 +78,8 @@ async function initOAuthClient(): Promise<void> {
 // Initialize on page load
 initOAuthClient();
 
-// Check for existing session on load
 window.addEventListener('DOMContentLoaded', async () => {
+  // Check for existing session on load
   // Check both query string and hash fragment
   const queryParams = new URLSearchParams(window.location.search);
   const hashParams = new URLSearchParams(window.location.hash.slice(1)); // Remove the '#'
@@ -95,54 +95,55 @@ window.addEventListener('DOMContentLoaded', async () => {
   }
 
   await restoreSession();
-});
 
-document
-  .getElementById('loginForm')!
-  .addEventListener('submit', async (e: Event) => {
-    e.preventDefault();
+  // Set up login form event listener
+  document
+    .getElementById('loginForm')!
+    .addEventListener('submit', async (e: Event) => {
+      e.preventDefault();
 
-    const handleInput = document.getElementById(
-      'handleInput'
-    ) as HTMLInputElement;
-    const handle = handleInput.value.trim();
+      const handleInput = document.getElementById(
+        'handleInput'
+      ) as HTMLInputElement;
+      const handle = handleInput.value.trim();
 
-    if (!handle) {
-      showStatus('loginStatus', 'Please enter your handle', true);
-      return;
-    }
+      if (!handle) {
+        showStatus('loginStatus', 'Please enter your handle', true);
+        return;
+      }
 
+      try {
+        showStatus('loginStatus', 'Redirecting to sign in...');
+
+        // Start OAuth flow with granular permissions for our custom collections
+        await oauthClient.signIn(handle, {
+          state: JSON.stringify({ returnTo: window.location.href }),
+          signal: new AbortController().signal,
+        });
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+        showStatus('loginStatus', `Login failed: ${errorMsg}`, true);
+      }
+    });
+
+  // Set up logout button event listener
+  document.getElementById('logoutButton')!.addEventListener('click', async () => {
     try {
-      showStatus('loginStatus', 'Redirecting to sign in...');
+      if (session) {
+        await oauthClient.revoke(session.sub);
+      }
 
-      // Start OAuth flow with granular permissions for our custom collections
-      await oauthClient.signIn(handle, {
-        state: JSON.stringify({ returnTo: window.location.href }),
-        signal: new AbortController().signal,
-      });
+      // Clear local session
+      session = null;
+
+      // Show login screen
+      showLoginScreen();
+      showStatus('loginStatus', 'Signed out successfully');
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-      showStatus('loginStatus', `Login failed: ${errorMsg}`, true);
+      showStatus('appStatus', `Logout failed: ${errorMsg}`, true);
     }
   });
-
-// Logout button handler
-document.getElementById('logoutButton')!.addEventListener('click', async () => {
-  try {
-    if (session) {
-      await oauthClient.revoke(session.sub);
-    }
-
-    // Clear local session
-    session = null;
-
-    // Show login screen
-    showLoginScreen();
-    showStatus('loginStatus', 'Signed out successfully');
-  } catch (error) {
-    const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-    showStatus('appStatus', `Logout failed: ${errorMsg}`, true);
-  }
 });
 
 // Restore session from storage
