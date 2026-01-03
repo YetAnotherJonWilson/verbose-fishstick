@@ -246,7 +246,7 @@ function initializeMainMenu(): void {
   // Clear existing content
   menuContainer.innerHTML = '';
 
-  // Create the three main menu buttons
+  // Create the two main menu buttons
   const startMeditationBtn = createButton(
     'Start New Meditation',
     'primary',
@@ -255,17 +255,12 @@ function initializeMainMenu(): void {
     }
   );
 
-  const usePresetBtn = createButton('Use a Preset', 'primary', () => {
-    navigationManager.showPresetsList();
-  });
-
   const viewSessionsBtn = createButton('View Past Sessions', 'primary', () => {
     navigationManager.showPastSessions();
   });
 
   // Append buttons to container
   menuContainer.appendChild(startMeditationBtn);
-  menuContainer.appendChild(usePresetBtn);
   menuContainer.appendChild(viewSessionsBtn);
 }
 
