@@ -3,11 +3,24 @@
  */
 
 import Store from './Store';
-import { createButton, formatSessionDate, clearContainer } from './UIComponents';
-import { createMeditationSession, getPresets, getMeditationSessions } from './API';
+import {
+  createButton,
+  formatSessionDate,
+  clearContainer,
+} from './UIComponents';
+import {
+  createMeditationSession,
+  getPresets,
+  getMeditationSessions,
+} from './API';
 import { session } from '../app';
 
-type ViewName = 'mainMenu' | 'newMeditation' | 'presets' | 'sessions';
+type ViewName =
+  | 'mainMenu'
+  | 'newMeditation'
+  | 'presets'
+  | 'sessions'
+  | 'meditating';
 
 export class NavigationManager {
   private currentView: ViewName = 'mainMenu';
@@ -28,11 +41,22 @@ export class NavigationManager {
    */
   private activateView(viewId: string): void {
     // Hide all views
-    const views = ['mainMenuView', 'newMeditationView', 'presetsView', 'sessionsView'];
-    views.forEach(id => {
+    const views = [
+      'mainMenuView',
+      'newMeditationFormView',
+      'presetsView',
+      'sessionsView',
+      'meditatingView',
+    ];
+    views.forEach((id) => {
       const el = document.getElementById(id);
       if (el) el.classList.remove('active');
     });
+
+    if (viewId !== 'mainMenuView') {
+      let appStatusEl = document.getElementById('appStatus');
+      if (appStatusEl) appStatusEl.remove();
+    }
 
     // Show the requested view
     const targetView = document.getElementById(viewId);
@@ -52,9 +76,9 @@ export class NavigationManager {
    */
   showNewMeditationForm(): void {
     this.currentView = 'newMeditation';
-    this.activateView('newMeditationView');
+    this.activateView('newMeditationFormView');
 
-    const container = document.getElementById('newMeditationView');
+    const container = document.getElementById('newMeditationFormView');
     if (!container) return;
 
     clearContainer(container);
@@ -89,7 +113,7 @@ export class NavigationManager {
     presetSelect.appendChild(noneOption);
 
     // Add presets from store
-    Store.presets.forEach(preset => {
+    Store.presets.forEach((preset) => {
       const option = document.createElement('option');
       option.value = preset.uri;
       option.textContent = `${preset.name} (${preset.duration}s)`;
@@ -110,51 +134,85 @@ export class NavigationManager {
     const buttonContainer = document.createElement('div');
     buttonContainer.className = 'button-group';
 
-    // Submit button
-    const submitButton = createButton('Start Meditation', 'primary', async () => {
-      const duration = parseInt(durationInput.value) * 60; // Convert to seconds
-      const presetId = presetSelect.value || null;
-      const notes = notesTextarea.value.trim() || null;
-
-      try {
-        await createMeditationSession(duration, presetId, notes);
-
-        // Show success message
-        const statusEl = document.getElementById('appStatus');
-        if (statusEl) {
-          statusEl.textContent = 'Meditation session created!';
-          statusEl.classList.remove('error');
-          statusEl.style.display = 'block';
-        }
-
-        // Reload user data to get the new session
-        const response = await getMeditationSessions();
-        Store.meditationSessions = response.meditationSessions;
-
-        // Return to main menu after short delay
-        setTimeout(() => {
-          this.showMainMenu();
-        }, 1500);
-      } catch (error) {
-        const statusEl = document.getElementById('appStatus');
-        if (statusEl) {
-          statusEl.textContent = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
-          statusEl.classList.add('error');
-          statusEl.style.display = 'block';
-        }
+    // Start button
+    const startMeditationNowButton = createButton(
+      'Start Meditation',
+      'primary',
+      async () => {
+        const duration = parseInt(durationInput.value) * 60; // Convert to seconds
+        this.showMeditatingView(duration);
       }
-    });
+    );
 
     // Cancel button
     const cancelButton = createButton('Cancel', 'secondary', () => {
       this.showMainMenu();
     });
 
-    buttonContainer.appendChild(submitButton);
+    buttonContainer.appendChild(startMeditationNowButton);
     buttonContainer.appendChild(cancelButton);
     form.appendChild(buttonContainer);
 
     container.appendChild(form);
+  }
+
+  /**
+   * Show the meditating view with countdown timer
+   */
+  showMeditatingView(durationInSeconds: number): void {
+    this.currentView = 'meditating';
+    this.activateView('meditatingView');
+
+    const container = document.getElementById('meditatingView');
+    if (!container) return;
+
+    clearContainer(container);
+
+    // Create title
+    const title = document.createElement('h2');
+    title.textContent = 'Meditating...';
+    container.appendChild(title);
+
+    // Create countdown display
+    const countdown = document.createElement('div');
+    countdown.className = 'countdown-timer';
+    countdown.style.fontSize = '48px';
+    countdown.style.fontWeight = 'bold';
+    countdown.style.margin = '40px 0';
+    countdown.style.textAlign = 'center';
+
+    // Function to format seconds as MM:SS
+    const formatTime = (totalSeconds: number): string => {
+      const minutes = Math.floor(totalSeconds / 60);
+      const seconds = totalSeconds % 60;
+      return `${minutes.toString().padStart(2, '0')}:${seconds
+        .toString()
+        .padStart(2, '0')}`;
+    };
+
+    // Initialize countdown display
+    let remainingTime = durationInSeconds;
+    countdown.textContent = formatTime(remainingTime);
+    container.appendChild(countdown);
+
+    // Start the countdown
+    const intervalId = setInterval(() => {
+      remainingTime--;
+      countdown.textContent = formatTime(remainingTime);
+
+      if (remainingTime <= 0) {
+        clearInterval(intervalId);
+        // Meditation complete - could add completion logic here
+        countdown.textContent = 'Complete!';
+      }
+    }, 1000);
+
+    // Add a stop button
+    const stopButton = createButton('Stop Meditation', 'secondary', () => {
+      clearInterval(intervalId);
+      this.showMainMenu();
+    });
+    container.appendChild(stopButton);
   }
 
   /**
@@ -185,7 +243,7 @@ export class NavigationManager {
       const presetList = document.createElement('div');
       presetList.className = 'preset-list';
 
-      Store.presets.forEach(preset => {
+      Store.presets.forEach((preset) => {
         const presetItem = document.createElement('div');
         presetItem.className = 'preset-item';
 
@@ -241,7 +299,7 @@ export class NavigationManager {
       const sessionList = document.createElement('div');
       sessionList.className = 'session-list';
 
-      recentSessions.forEach(session => {
+      recentSessions.forEach((session) => {
         const sessionItem = document.createElement('div');
         sessionItem.className = 'session-item';
 

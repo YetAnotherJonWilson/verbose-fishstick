@@ -15,6 +15,7 @@ export function createButton(
   onClick: () => void
 ): HTMLButtonElement {
   const button = document.createElement('button');
+  button.type = 'button'; // Prevent form submission
   button.textContent = label;
   button.className = variant === 'secondary' ? 'secondary' : '';
   button.addEventListener('click', onClick);
