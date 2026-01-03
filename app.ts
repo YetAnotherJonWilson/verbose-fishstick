@@ -4,8 +4,10 @@ import {
 } from '@atproto/oauth-client-browser';
 import { Agent } from '@atproto/api';
 import { atprotoLoopbackClientMetadata } from '@atproto/oauth-types';
-import { getMeditationSessions } from './services/API';
+import { getMeditationSessions, getPresets } from './services/API';
 import Store from './services/Store';
+import { NavigationManager } from './services/Navigation';
+import { createButton } from './services/UIComponents';
 
 // Type definitions
 interface SoundInterval {
@@ -58,6 +60,7 @@ interface CreateRecordResponse {
 // Global variables
 let oauthClient: BrowserOAuthClient;
 export let session: OAuthSession | null = null;
+let navigationManager: NavigationManager;
 
 async function initOAuthClient(): Promise<void> {
   try {
@@ -161,7 +164,8 @@ async function restoreSession(): Promise<void> {
       session = result.session;
       showAppScreen();
       updateUserInfo();
-      loadUserData();
+      await loadUserData();
+      initializeMainMenu();
 
       if (result.state) {
         console.log(
@@ -185,16 +189,20 @@ async function updateUserInfo(): Promise<void> {
   const agent = new Agent(session);
 
   try {
-    // TODO: Using describeRepo for now to work with basic atproto scope, need to investigate
-    // scopes further for getProfile access (and possibly read/write permissions)
-    const repo = await agent.com.atproto.repo.describeRepo({
-      repo: session.sub,
+    const profile = await agent.app.bsky.actor.getProfile({
+      actor: session.sub,
     });
 
+    const userDisplayNameEl = document.getElementById(
+      'userDisplayName'
+    ) as HTMLElement;
     const userHandleEl = document.getElementById('userHandle') as HTMLElement;
     const userDidEl = document.getElementById('userDid') as HTMLElement;
 
-    userHandleEl.textContent = repo.data.handle;
+    console.log('profile data', profile.data);
+    const displayName = profile.data.displayName ?? '';
+    userDisplayNameEl.textContent = displayName;
+    userHandleEl.textContent = profile.data.handle;
     userDidEl.textContent = session.sub;
   } catch (error) {
     // Fallback: just show DID
@@ -211,16 +219,54 @@ async function loadUserData(): Promise<void> {
 
   try {
     // Fetch meditation sessions and update the Store
-    const response = await getMeditationSessions();
-    Store.meditationSessions = response.meditationSessions;
+    const sessionsResponse = await getMeditationSessions();
+    Store.meditationSessions = sessionsResponse.meditationSessions;
     console.log(
-      `Loaded ${response.meditationSessions.length} meditation sessions`
+      `Loaded ${sessionsResponse.meditationSessions.length} meditation sessions`
     );
-    console.log(Store.meditationSessions);
+
+    // Fetch presets and update the Store
+    const presetsResponse = await getPresets();
+    Store.presets = presetsResponse.presets;
+    console.log(`Loaded ${presetsResponse.presets.length} presets`);
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-    console.error('Failed to load meditation sessions:', errorMsg);
+    console.error('Failed to load user data:', errorMsg);
   }
+}
+
+function initializeMainMenu(): void {
+  // Initialize navigation manager
+  navigationManager = new NavigationManager();
+
+  // Get menu container
+  const menuContainer = document.getElementById('menuContainer');
+  if (!menuContainer) return;
+
+  // Clear existing content
+  menuContainer.innerHTML = '';
+
+  // Create the three main menu buttons
+  const startMeditationBtn = createButton(
+    'Start New Meditation',
+    'primary',
+    () => {
+      navigationManager.showNewMeditationForm();
+    }
+  );
+
+  const usePresetBtn = createButton('Use a Preset', 'primary', () => {
+    navigationManager.showPresetsList();
+  });
+
+  const viewSessionsBtn = createButton('View Past Sessions', 'primary', () => {
+    navigationManager.showPastSessions();
+  });
+
+  // Append buttons to container
+  menuContainer.appendChild(startMeditationBtn);
+  menuContainer.appendChild(usePresetBtn);
+  menuContainer.appendChild(viewSessionsBtn);
 }
 
 // UI Helper functions

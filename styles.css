@@ -115,3 +115,95 @@ button.secondary:hover {
   border-radius: 5px;
   margin: 15px 0;
 }
+
+/* View sections */
+.view-section {
+  display: none;
+}
+
+.view-section.active {
+  display: block;
+  margin: 20px 0;
+}
+
+/* Menu container */
+#menuContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 20px 0;
+}
+
+/* Session and Preset lists */
+.session-list,
+.preset-list {
+  margin: 20px 0;
+}
+
+.session-item,
+.preset-item {
+  padding: 12px;
+  background: #f9f9f9;
+  border: 1px solid #e0e0e0;
+  border-radius: 5px;
+  margin-bottom: 10px;
+}
+
+.session-item:hover,
+.preset-item:hover {
+  background: #f0f0f0;
+}
+
+/* Empty state */
+.no-data {
+  text-align: center;
+  padding: 40px 20px;
+  color: #666;
+  font-style: italic;
+}
+
+/* Form styling */
+.meditation-form {
+  margin: 20px 0;
+}
+
+.meditation-form label {
+  display: block;
+  margin: 15px 0;
+  font-weight: 500;
+  color: #333;
+}
+
+.meditation-form input,
+.meditation-form select,
+.meditation-form textarea {
+  width: 100%;
+  padding: 10px;
+  margin-top: 5px;
+  border: 1px solid #ddd;
+  border-radius: 5px;
+  box-sizing: border-box;
+  font-family: inherit;
+}
+
+.meditation-form textarea {
+  resize: vertical;
+}
+
+/* Button group for forms */
+.button-group {
+  display: flex;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.button-group button {
+  flex: 1;
+}
+
+/* Headings in views */
+h2 {
+  color: #333;
+  margin-bottom: 15px;
+  font-size: 24px;
+}
