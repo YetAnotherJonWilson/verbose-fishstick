@@ -10,9 +10,12 @@ import {
 } from './UIComponents';
 import {
   createMeditationSession,
+  updateMeditationSession,
+  createPreset,
   getPresets,
   getMeditationSessions,
 } from './API';
+import { playGong } from './Audio';
 import { session } from '../app';
 
 type ViewName =
@@ -20,7 +23,8 @@ type ViewName =
   | 'newMeditation'
   | 'presets'
   | 'sessions'
-  | 'meditating';
+  | 'meditating'
+  | 'completedMeditation';
 
 export class NavigationManager {
   private currentView: ViewName = 'mainMenu';
@@ -47,6 +51,7 @@ export class NavigationManager {
       'presetsView',
       'sessionsView',
       'meditatingView',
+      'completedMeditationView',
     ];
     views.forEach((id) => {
       const el = document.getElementById(id);
@@ -92,21 +97,63 @@ export class NavigationManager {
     const form = document.createElement('form');
     form.className = 'meditation-form';
 
+    // Section 1: Manual duration and intervals
+    const manualSection = document.createElement('div');
+    manualSection.style.marginBottom = '24px';
+
+    const manualTitle = document.createElement('h3');
+    manualTitle.textContent = 'Select a duration and sound intervals';
+    manualTitle.style.marginBottom = '12px';
+    manualSection.appendChild(manualTitle);
+
     // Duration input
     const durationLabel = document.createElement('label');
     durationLabel.textContent = 'Duration (minutes):';
+    durationLabel.style.display = 'block';
+    durationLabel.style.marginBottom = '8px';
     const durationInput = document.createElement('input');
     durationInput.type = 'number';
     durationInput.min = '1';
     durationInput.value = '10';
-    durationInput.required = true;
-    durationLabel.appendChild(durationInput);
-    form.appendChild(durationLabel);
+    durationInput.style.width = '100%';
+    durationInput.style.marginBottom = '12px';
+    manualSection.appendChild(durationLabel);
+    manualSection.appendChild(durationInput);
 
-    // Preset selector
-    const presetLabel = document.createElement('label');
-    presetLabel.textContent = 'Preset (optional):';
+    // Intervals input
+    const intervalsLabel = document.createElement('label');
+    intervalsLabel.textContent =
+      'Intervals (optional - minutes, comma-separated):';
+    intervalsLabel.style.display = 'block';
+    intervalsLabel.style.marginBottom = '8px';
+    const intervalsInput = document.createElement('input');
+    intervalsInput.type = 'text';
+    intervalsInput.placeholder = 'e.g., 5,10,15';
+    intervalsInput.style.width = '100%';
+    manualSection.appendChild(intervalsLabel);
+    manualSection.appendChild(intervalsInput);
+
+    form.appendChild(manualSection);
+
+    // Divider
+    const divider = document.createElement('div');
+    divider.textContent = '— or —';
+    divider.style.textAlign = 'center';
+    divider.style.margin = '20px 0';
+    divider.style.color = '#666';
+    form.appendChild(divider);
+
+    // Section 2: Preset selector
+    const presetSection = document.createElement('div');
+    presetSection.style.marginBottom = '24px';
+
+    const presetTitle = document.createElement('h3');
+    presetTitle.textContent = 'Use a preset instead';
+    presetTitle.style.marginBottom = '12px';
+    presetSection.appendChild(presetTitle);
+
     const presetSelect = document.createElement('select');
+    presetSelect.style.width = '100%';
     const noneOption = document.createElement('option');
     noneOption.value = '';
     noneOption.textContent = 'None';
@@ -116,19 +163,47 @@ export class NavigationManager {
     Store.presets.forEach((preset) => {
       const option = document.createElement('option');
       option.value = preset.uri;
-      option.textContent = `${preset.name} (${preset.duration}s)`;
+
+      // Format intervals for display
+      const intervalsText =
+        preset.soundIntervals && preset.soundIntervals.length > 0
+          ? ` • Intervals: ${preset.soundIntervals
+              .map((si) => Math.floor(si.time / 60))
+              .join(',')}`
+          : '';
+
+      option.textContent = `${preset.name} (${Math.floor(
+        preset.duration / 60
+      )} min${intervalsText})`;
       presetSelect.appendChild(option);
     });
-    presetLabel.appendChild(presetSelect);
-    form.appendChild(presetLabel);
 
-    // Notes textarea
-    const notesLabel = document.createElement('label');
-    notesLabel.textContent = 'Notes (optional):';
-    const notesTextarea = document.createElement('textarea');
-    notesTextarea.rows = 3;
-    notesLabel.appendChild(notesTextarea);
-    form.appendChild(notesLabel);
+    // Handle preset selection
+    presetSelect.addEventListener('change', () => {
+      if (presetSelect.value) {
+        const selectedPreset = Store.presets.find(
+          (p) => p.uri === presetSelect.value
+        );
+        if (selectedPreset) {
+          durationInput.value = String(
+            Math.floor(selectedPreset.duration / 60)
+          );
+          if (
+            selectedPreset.soundIntervals &&
+            selectedPreset.soundIntervals.length > 0
+          ) {
+            intervalsInput.value = selectedPreset.soundIntervals
+              .map((si) => Math.floor(si.time / 60))
+              .join(',');
+          } else {
+            intervalsInput.value = '';
+          }
+        }
+      }
+    });
+
+    presetSection.appendChild(presetSelect);
+    form.appendChild(presetSection);
 
     // Button container
     const buttonContainer = document.createElement('div');
@@ -140,7 +215,22 @@ export class NavigationManager {
       'primary',
       async () => {
         const duration = parseInt(durationInput.value) * 60; // Convert to seconds
-        this.showMeditatingView(duration);
+
+        // Parse intervals (comma-separated minutes)
+        const intervals: number[] = [];
+        if (intervalsInput.value.trim()) {
+          const parsed = intervalsInput.value
+            .split(',')
+            .map((s) => parseInt(s.trim()))
+            .filter((n) => !isNaN(n) && n > 0);
+          intervals.push(...parsed);
+        }
+
+        this.showMeditatingView(
+          duration,
+          intervals,
+          presetSelect.value || null
+        );
       }
     );
 
@@ -159,7 +249,11 @@ export class NavigationManager {
   /**
    * Show the meditating view with countdown timer
    */
-  showMeditatingView(durationInSeconds: number): void {
+  showMeditatingView(
+    durationInSeconds: number,
+    intervalsInMinutes: number[] = [],
+    presetId: string | null = null
+  ): void {
     this.currentView = 'meditating';
     this.activateView('meditatingView');
 
@@ -195,24 +289,178 @@ export class NavigationManager {
     countdown.textContent = formatTime(remainingTime);
     container.appendChild(countdown);
 
+    // Play gong sound to start meditation
+    playGong();
+
+    // Convert interval minutes to seconds and track which have been played
+    const intervalSeconds = intervalsInMinutes.map((min) => min * 60);
+    const playedIntervals = new Set<number>();
+
     // Start the countdown
     const intervalId = setInterval(() => {
       remainingTime--;
       countdown.textContent = formatTime(remainingTime);
 
+      // Check if we've reached an interval time
+      const elapsedTime = durationInSeconds - remainingTime;
+      for (const intervalTime of intervalSeconds) {
+        if (elapsedTime >= intervalTime && !playedIntervals.has(intervalTime)) {
+          playGong();
+          playedIntervals.add(intervalTime);
+        }
+      }
+
       if (remainingTime <= 0) {
         clearInterval(intervalId);
-        // Meditation complete - could add completion logic here
-        countdown.textContent = 'Complete!';
+        // Play gong sound on completion
+        playGong();
+        // Meditation complete - transition to completion view with full duration
+        this.showCompletedMeditationView(
+          durationInSeconds,
+          intervalsInMinutes,
+          presetId
+        );
       }
     }, 1000);
 
     // Add a stop button
     const stopButton = createButton('Stop Meditation', 'secondary', () => {
       clearInterval(intervalId);
-      this.showMainMenu();
+      // Play gong sound on stop
+      playGong();
+      // Calculate elapsed time (what was completed before stopping)
+      const elapsedTime = durationInSeconds - remainingTime;
+      this.showCompletedMeditationView(
+        elapsedTime,
+        intervalsInMinutes,
+        presetId
+      );
     });
     container.appendChild(stopButton);
+  }
+
+  /**
+   * Show the completed meditation view
+   */
+  async showCompletedMeditationView(
+    durationInSeconds: number,
+    intervalsInMinutes: number[] = [],
+    presetId: string | null = null
+  ): Promise<void> {
+    this.currentView = 'completedMeditation';
+    this.activateView('completedMeditationView');
+
+    const container = document.getElementById('completedMeditationView');
+    if (!container) return;
+
+    clearContainer(container);
+
+    // Create the meditation session
+    let sessionUri: string = '';
+    try {
+      const response = await createMeditationSession(
+        durationInSeconds,
+        presetId
+      );
+      sessionUri = response.uri;
+    } catch (error) {
+      console.error('Failed to create meditation session:', error);
+    }
+
+    // Create title
+    const title = document.createElement('h2');
+    title.textContent = 'Meditation Complete!';
+    container.appendChild(title);
+
+    // Notes label (on separate line)
+    const notesLabel = document.createElement('label');
+    notesLabel.textContent = 'Notes (optional):';
+    notesLabel.style.display = 'block';
+    notesLabel.style.marginTop = '20px';
+    container.appendChild(notesLabel);
+
+    // Notes textarea
+    const notesTextarea = document.createElement('textarea');
+    notesTextarea.rows = 5;
+    notesTextarea.placeholder = 'How was your meditation session?';
+    notesTextarea.style.width = '100%';
+    notesTextarea.style.marginTop = '8px';
+    container.appendChild(notesTextarea);
+
+    // Button container
+    const buttonContainer = document.createElement('div');
+    buttonContainer.className = 'button-group';
+    buttonContainer.style.marginTop = '20px';
+
+    // Save Notes button
+    const saveNotesButton = createButton(
+      'Save Notes',
+      'secondary',
+      async () => {
+        const notes = notesTextarea.value.trim();
+        if (notes && sessionUri) {
+          try {
+            await updateMeditationSession(
+              sessionUri,
+              durationInSeconds,
+              presetId,
+              notes
+            );
+            // Provide feedback
+            saveNotesButton.textContent = 'Notes Saved!';
+            saveNotesButton.disabled = true;
+          } catch (error) {
+            console.error('Failed to save notes:', error);
+            alert('Failed to save notes. Please try again.');
+          }
+        }
+      }
+    );
+
+    // Save as Preset button
+    const saveAsPresetButton = createButton(
+      'Save as Preset',
+      'secondary',
+      async () => {
+        const presetName = prompt('Enter a name for this preset:');
+        if (presetName && presetName.trim()) {
+          try {
+            // Convert intervals to soundIntervals format
+            const soundIntervals = intervalsInMinutes.map((min) => ({
+              time: min * 60,
+              soundType: 'gong',
+            }));
+
+            await createPreset(
+              presetName.trim(),
+              durationInSeconds,
+              soundIntervals
+            );
+
+            // Provide feedback
+            saveAsPresetButton.textContent = 'Preset Saved!';
+            saveAsPresetButton.disabled = true;
+
+            // Refresh presets in store
+            const presetsResponse = await getPresets();
+            Store.presets = presetsResponse.presets;
+          } catch (error) {
+            console.error('Failed to save preset:', error);
+            alert('Failed to save preset. Please try again.');
+          }
+        }
+      }
+    );
+
+    // Return to main menu button
+    const returnButton = createButton('Return to Main Menu', 'primary', () => {
+      this.showMainMenu();
+    });
+
+    buttonContainer.appendChild(saveNotesButton);
+    buttonContainer.appendChild(saveAsPresetButton);
+    buttonContainer.appendChild(returnButton);
+    container.appendChild(buttonContainer);
   }
 
   /**

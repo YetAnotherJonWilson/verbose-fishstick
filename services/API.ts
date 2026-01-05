@@ -221,6 +221,73 @@ async function createPreset(
 }
 
 /**
+ * Update an existing meditation session with notes
+ * @param {string} uri - The URI of the meditation session to update
+ * @param {number} duration - Duration in seconds (required, must be >= 0)
+ * @param {string} presetId - Optional reference to preset used
+ * @param {string} notes - User notes (max 1000 chars)
+ * @returns {Promise<CreateRecordResponse>} Returns { uri, cid, validationStatus }
+ * @throws {Error} If user not logged in or API call fails
+ */
+async function updateMeditationSession(
+  uri: string,
+  duration: number,
+  presetId: string | null = null,
+  notes: string | null = null
+): Promise<CreateRecordResponse> {
+  // Parameter validation
+  if (!uri || typeof uri !== 'string') {
+    throw new Error('uri is required and must be a string');
+  }
+
+  if (typeof duration !== 'number' || duration < 0) {
+    throw new Error('Duration must be a non-negative number');
+  }
+
+  if (notes && typeof notes !== 'string') {
+    throw new Error('notes must be a string');
+  }
+
+  if (notes && notes.length > 1000) {
+    throw new Error('notes cannot exceed 1000 characters');
+  }
+
+  // Extract rkey from URI
+  const uriParts = uri.split('/');
+  const rkey = uriParts[uriParts.length - 1];
+
+  // Build record object
+  const record: Record<string, unknown> = {
+    $type: 'place.starting.meditationSession',
+    createdAt: new Date().toISOString(),
+    duration: Math.floor(duration),
+  };
+
+  // Add optional fields only if provided
+  if (presetId) {
+    record.presetId = presetId;
+  }
+  if (notes) {
+    record.notes = notes;
+  }
+
+  // Update record via AT Protocol API
+  const agent = createAgent();
+  const response = await agent.com.atproto.repo.putRecord({
+    repo: session!.sub,
+    collection: 'place.starting.meditationSession',
+    rkey: rkey,
+    record: record,
+  });
+
+  return {
+    uri: response.data.uri,
+    cid: response.data.cid,
+    validationStatus: response.data.validationStatus,
+  };
+}
+
+/**
  * Retrieve all meditation sessions with pagination support
  * @param {PaginationOptions} options - Query options
  * @returns {Promise<MeditationSessionsResponse>} Returns { meditationSessions, cursor, total }
@@ -315,6 +382,7 @@ async function getPresets(
 // Export all API functions
 export {
   createMeditationSession,
+  updateMeditationSession,
   createPreset,
   getMeditationSessions,
   getPresets,

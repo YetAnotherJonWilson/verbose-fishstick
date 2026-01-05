@@ -199,7 +199,6 @@ async function updateUserInfo(): Promise<void> {
     const userHandleEl = document.getElementById('userHandle') as HTMLElement;
     const userDidEl = document.getElementById('userDid') as HTMLElement;
 
-    console.log('profile data', profile.data);
     const displayName = profile.data.displayName ?? '';
     userDisplayNameEl.textContent = displayName;
     userHandleEl.textContent = profile.data.handle;
