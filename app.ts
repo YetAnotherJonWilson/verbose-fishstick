@@ -1,13 +1,15 @@
-import {
-  BrowserOAuthClient,
-  OAuthSession,
-} from '@atproto/oauth-client-browser';
-import { Agent } from '@atproto/api';
-import { atprotoLoopbackClientMetadata } from '@atproto/oauth-types';
 import { getMeditationSessions, getPresets } from './services/API';
 import Store from './services/Store';
 import { NavigationManager } from './services/Navigation';
 import { createButton } from './services/UIComponents';
+import {
+  initOAuthClient,
+  signIn,
+  signOut,
+  restoreSession as restoreAuthSession,
+  getUserProfile,
+  getSession,
+} from './services/Auth';
 
 // Type definitions
 interface SoundInterval {
@@ -58,28 +60,19 @@ interface CreateRecordResponse {
 }
 
 // Global variables
-let oauthClient: BrowserOAuthClient;
-export let session: OAuthSession | null = null;
-let navigationManager: NavigationManager;
-
-async function initOAuthClient(): Promise<void> {
-  try {
-    oauthClient = new BrowserOAuthClient({
-      handleResolver: 'https://bsky.social',
-      clientMetadata: atprotoLoopbackClientMetadata(
-        `http://localhost?${new URLSearchParams([
-          ['redirect_uri', `http://127.0.0.1:8080`],
-          ['scope', `atproto transition:generic`],
-        ])}`
-      ),
-    });
-  } catch (error) {
-    const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-    showStatus('loginStatus', `Error: ${errorMsg}`, true);
+declare global {
+  interface Window {
+    app: any;
   }
+  var app: any;
 }
 
-// Initialize on page load
+window.app = {};
+app.store = Store;
+
+let navigationManager: NavigationManager;
+
+// Initialize Auth on page load
 initOAuthClient();
 
 window.addEventListener('DOMContentLoaded', async () => {
@@ -118,12 +111,7 @@ window.addEventListener('DOMContentLoaded', async () => {
 
       try {
         showStatus('loginStatus', 'Redirecting to sign in...');
-
-        // Start OAuth flow with granular permissions for our custom collections
-        await oauthClient.signIn(handle, {
-          state: JSON.stringify({ returnTo: window.location.href }),
-          signal: new AbortController().signal,
-        });
+        await signIn(handle);
       } catch (error) {
         const errorMsg =
           error instanceof Error ? error.message : 'Unknown error';
@@ -136,14 +124,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     .getElementById('logoutButton')!
     .addEventListener('click', async () => {
       try {
-        if (session) {
-          await oauthClient.revoke(session.sub);
-        }
-
-        // Clear local session
-        session = null;
-
-        // Show login screen
+        await signOut();
         showLoginScreen();
         showStatus('loginStatus', 'Signed out successfully');
       } catch (error) {
@@ -157,11 +138,9 @@ window.addEventListener('DOMContentLoaded', async () => {
 // Restore session from storage
 async function restoreSession(): Promise<void> {
   try {
-    // Try to initialize/restore the session
-    const result = await oauthClient.init();
+    const result = await restoreAuthSession();
 
     if (result) {
-      session = result.session;
       showAppScreen();
       updateUserInfo();
       await loadUserData();
@@ -169,10 +148,10 @@ async function restoreSession(): Promise<void> {
 
       if (result.state) {
         console.log(
-          `${session.sub} was successfully authenticated (state: ${result.state})`
+          `${result.session.sub} was successfully authenticated (state: ${result.state})`
         );
       } else {
-        console.log(`${session.sub} was restored (last active session)`);
+        console.log(`${result.session.sub} was restored (last active session)`);
       }
     } else {
       showLoginScreen();
@@ -184,14 +163,8 @@ async function restoreSession(): Promise<void> {
 }
 
 async function updateUserInfo(): Promise<void> {
-  if (!session) return;
-
-  const agent = new Agent(session);
-
   try {
-    const profile = await agent.app.bsky.actor.getProfile({
-      actor: session.sub,
-    });
+    const profile = await getUserProfile();
 
     const userDisplayNameEl = document.getElementById(
       'userDisplayName'
@@ -199,34 +172,28 @@ async function updateUserInfo(): Promise<void> {
     const userHandleEl = document.getElementById('userHandle') as HTMLElement;
     const userDidEl = document.getElementById('userDid') as HTMLElement;
 
-    const displayName = profile.data.displayName ?? '';
-    userDisplayNameEl.textContent = displayName;
-    userHandleEl.textContent = profile.data.handle;
-    userDidEl.textContent = session.sub;
+    userDisplayNameEl.textContent = profile.displayName;
+    userHandleEl.textContent = profile.handle;
+    userDidEl.textContent = profile.did;
   } catch (error) {
-    // Fallback: just show DID
-    const userHandleEl = document.getElementById('userHandle') as HTMLElement;
-    const userDidEl = document.getElementById('userDid') as HTMLElement;
-
-    userHandleEl.textContent = session.sub;
-    userDidEl.textContent = '(handle unavailable in loopback mode)';
+    console.error('Failed to update user info:', error);
   }
 }
 
 async function loadUserData(): Promise<void> {
-  if (!session) return;
+  if (!getSession()) return;
 
   try {
     // Fetch meditation sessions and update the Store
     const sessionsResponse = await getMeditationSessions();
-    Store.meditationSessions = sessionsResponse.meditationSessions;
+    app.store.meditationSessions = sessionsResponse.meditationSessions;
     console.log(
       `Loaded ${sessionsResponse.meditationSessions.length} meditation sessions`
     );
 
     // Fetch presets and update the Store
     const presetsResponse = await getPresets();
-    Store.presets = presetsResponse.presets;
+    app.store.presets = presetsResponse.presets;
     console.log(`Loaded ${presetsResponse.presets.length} presets`);
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : 'Unknown error';

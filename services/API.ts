@@ -4,7 +4,7 @@ import {
 } from '@atproto/oauth-client-browser';
 import { Agent } from '@atproto/api';
 import { atprotoLoopbackClientMetadata } from '@atproto/oauth-types';
-import { session } from '../app';
+import { session } from './Auth';
 
 // Type definitions (imported from app.ts concepts)
 interface SoundInterval {

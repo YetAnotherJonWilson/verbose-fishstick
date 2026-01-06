@@ -16,7 +16,6 @@ import {
   getMeditationSessions,
 } from './API';
 import { playGong } from './Audio';
-import { session } from '../app';
 
 type ViewName =
   | 'mainMenu'
