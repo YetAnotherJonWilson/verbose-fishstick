@@ -32,6 +32,16 @@ export class NavigationManager {
   }
 
   /**
+   * Cleanup any active timers/intervals (call on sign-out)
+   */
+  cleanup(): void {
+    if (this.meditationCleanup) {
+      this.meditationCleanup();
+      this.meditationCleanup = null;
+    }
+  }
+
+  /**
    * Helper to toggle view visibility
    */
   private activateView(viewId: string): void {

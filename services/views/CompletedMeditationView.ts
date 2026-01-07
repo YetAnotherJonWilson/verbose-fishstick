@@ -3,7 +3,7 @@
  * Renders the post-meditation screen with notes and preset saving options
  */
 
-import Store from '../Store';
+import { storeManager } from '../Store';
 import { createButton, clearContainer } from '../UIComponents';
 import {
   createMeditationSession,
@@ -33,6 +33,7 @@ export async function renderCompletedMeditationView(
 
   // Create the meditation session
   let sessionUri: string = '';
+  let sessionCreationFailed = false;
   try {
     const response = await createMeditationSession(
       durationInSeconds,
@@ -41,12 +42,22 @@ export async function renderCompletedMeditationView(
     sessionUri = response.uri;
   } catch (error) {
     console.error('Failed to create meditation session:', error);
+    sessionCreationFailed = true;
   }
 
   // Create title
   const title = document.createElement('h2');
   title.textContent = 'Meditation Complete!';
   container.appendChild(title);
+
+  // Show error if session creation failed
+  if (sessionCreationFailed) {
+    const errorMsg = document.createElement('p');
+    errorMsg.textContent = 'Warning: Failed to save this session. You can still save it as a preset.';
+    errorMsg.style.color = '#c53030';
+    errorMsg.style.marginTop = '12px';
+    container.appendChild(errorMsg);
+  }
 
   // Notes label (on separate line)
   const notesLabel = document.createElement('label');
@@ -93,6 +104,12 @@ export async function renderCompletedMeditationView(
     }
   );
 
+  // Disable Save Notes if session creation failed
+  if (sessionCreationFailed) {
+    saveNotesButton.disabled = true;
+    saveNotesButton.title = 'Cannot save notes - session was not created';
+  }
+
   // Save as Preset button
   const saveAsPresetButton = createButton(
     'Save as Preset',
@@ -119,7 +136,7 @@ export async function renderCompletedMeditationView(
 
           // Refresh presets in store
           const presetsResponse = await getPresets();
-          Store.presets = presetsResponse.presets;
+          storeManager.setPresets(presetsResponse.presets);
         } catch (error) {
           console.error('Failed to save preset:', error);
           alert('Failed to save preset. Please try again.');

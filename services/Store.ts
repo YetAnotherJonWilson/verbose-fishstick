@@ -1,34 +1,66 @@
-interface MeditationSessionData {
-  uri: string;
-  cid: string;
-  createdAt: string;
-  duration: number;
-  presetId: string | null;
-  notes: string | null;
+/**
+ * Global store for meditation app state
+ */
+
+import {
+  StoreType,
+  MeditationSessionData,
+  PresetData,
+} from './types';
+
+type StoreListener = (store: StoreType) => void;
+
+/**
+ * StoreManager provides controlled mutations and optional subscriptions
+ */
+class StoreManager {
+  private store: StoreType;
+  private listeners: Set<StoreListener> = new Set();
+
+  constructor(store: StoreType) {
+    this.store = store;
+  }
+
+  /**
+   * Set all meditation sessions (replaces existing)
+   */
+  setMeditationSessions(sessions: MeditationSessionData[]): void {
+    this.store.meditationSessions = sessions;
+    this.notify();
+  }
+
+  /**
+   * Set all presets (replaces existing)
+   */
+  setPresets(presets: PresetData[]): void {
+    this.store.presets = presets;
+    this.notify();
+  }
+
+  /**
+   * Subscribe to store changes
+   * @returns unsubscribe function
+   */
+  subscribe(listener: StoreListener): () => void {
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
+  }
+
+  private notify(): void {
+    this.listeners.forEach((listener) => listener(this.store));
+  }
 }
 
-interface SoundInterval {
-  time: number;
-  soundType: string;
-}
-
-interface PresetData {
-  uri: string;
-  cid: string;
-  name: string;
-  duration: number;
-  createdAt: string;
-  soundIntervals: SoundInterval[];
-}
-
-interface StoreType {
-  meditationSessions: MeditationSessionData[];
-  presets: PresetData[];
-}
-
+// The raw store object - views can still read directly
 const Store: StoreType = {
   meditationSessions: [],
   presets: [],
 };
 
+// The manager instance for mutations
+export const storeManager = new StoreManager(Store);
+
+// Default export for backward compatibility (views read from this)
 export default Store;

@@ -1,5 +1,5 @@
 import { getMeditationSessions, getPresets } from './services/API';
-import Store from './services/Store';
+import Store, { storeManager } from './services/Store';
 import { NavigationManager } from './services/Navigation';
 import { createButton } from './services/UIComponents';
 import {
@@ -10,54 +10,6 @@ import {
   getUserProfile,
   getSession,
 } from './services/Auth';
-
-// Type definitions
-interface SoundInterval {
-  time: number;
-  soundType: string;
-}
-
-interface PaginationOptions {
-  limit?: number;
-  cursor?: string | null;
-  reverse?: boolean;
-}
-
-interface MeditationSessionData {
-  uri: string;
-  cid: string;
-  createdAt: string;
-  duration: number;
-  presetId: string | null;
-  notes: string | null;
-}
-
-interface MeditationSessionsResponse {
-  meditationSessions: MeditationSessionData[];
-  cursor: string | null;
-  total: number;
-}
-
-interface PresetData {
-  uri: string;
-  cid: string;
-  name: string;
-  duration: number;
-  createdAt: string;
-  soundIntervals: SoundInterval[];
-}
-
-interface PresetsResponse {
-  presets: PresetData[];
-  cursor: string | null;
-  total: number;
-}
-
-interface CreateRecordResponse {
-  uri: string;
-  cid: string;
-  validationStatus?: string;
-}
 
 // Global variables
 declare global {
@@ -124,6 +76,10 @@ window.addEventListener('DOMContentLoaded', async () => {
     .getElementById('logoutButton')!
     .addEventListener('click', async () => {
       try {
+        // Clean up any active meditation timers before signing out
+        if (navigationManager) {
+          navigationManager.cleanup();
+        }
         await signOut();
         showLoginScreen();
         showStatus('loginStatus', 'Signed out successfully');
@@ -186,14 +142,14 @@ async function loadUserData(): Promise<void> {
   try {
     // Fetch meditation sessions and update the Store
     const sessionsResponse = await getMeditationSessions();
-    app.store.meditationSessions = sessionsResponse.meditationSessions;
+    storeManager.setMeditationSessions(sessionsResponse.meditationSessions);
     console.log(
       `Loaded ${sessionsResponse.meditationSessions.length} meditation sessions`
     );
 
     // Fetch presets and update the Store
     const presetsResponse = await getPresets();
-    app.store.presets = presetsResponse.presets;
+    storeManager.setPresets(presetsResponse.presets);
     console.log(`Loaded ${presetsResponse.presets.length} presets`);
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : 'Unknown error';

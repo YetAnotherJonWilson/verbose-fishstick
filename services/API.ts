@@ -5,54 +5,15 @@ import {
 import { Agent } from '@atproto/api';
 import { atprotoLoopbackClientMetadata } from '@atproto/oauth-types';
 import { session } from './Auth';
-
-// Type definitions (imported from app.ts concepts)
-interface SoundInterval {
-  time: number;
-  soundType: string;
-}
-
-interface PaginationOptions {
-  limit?: number;
-  cursor?: string | null;
-  reverse?: boolean;
-}
-
-interface MeditationSessionData {
-  uri: string;
-  cid: string;
-  createdAt: string;
-  duration: number;
-  presetId: string | null;
-  notes: string | null;
-}
-
-interface MeditationSessionsResponse {
-  meditationSessions: MeditationSessionData[];
-  cursor: string | null;
-  total: number;
-}
-
-interface PresetData {
-  uri: string;
-  cid: string;
-  name: string;
-  duration: number;
-  createdAt: string;
-  soundIntervals: SoundInterval[];
-}
-
-interface PresetsResponse {
-  presets: PresetData[];
-  cursor: string | null;
-  total: number;
-}
-
-interface CreateRecordResponse {
-  uri: string;
-  cid: string;
-  validationStatus?: string;
-}
+import {
+  SoundInterval,
+  PaginationOptions,
+  MeditationSessionData,
+  MeditationSessionsResponse,
+  PresetData,
+  PresetsResponse,
+  CreateRecordResponse,
+} from './types';
 
 // Helper: Validate session exists
 function ensureSession(): OAuthSession {
