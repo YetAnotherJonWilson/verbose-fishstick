@@ -3,8 +3,10 @@
  * Renders the list of past meditation sessions (10 most recent)
  */
 
-import Store from '../Store';
 import { createButton, clearContainer, formatSessionDate } from '../UIComponents';
+import { MeditationSessionData } from '../types';
+import { secondsToMinutesRounded } from '../TimeUtils';
+import { MEDITATION_LIMITS } from '../Constants';
 
 interface PastSessionsViewCallbacks {
   onBack: () => void;
@@ -12,6 +14,7 @@ interface PastSessionsViewCallbacks {
 
 export function renderPastSessionsView(
   container: HTMLElement,
+  sessions: MeditationSessionData[],
   callbacks: PastSessionsViewCallbacks
 ): void {
   clearContainer(container);
@@ -22,14 +25,14 @@ export function renderPastSessionsView(
   container.appendChild(title);
 
   // Check if we have sessions
-  if (Store.meditationSessions.length === 0) {
+  if (sessions.length === 0) {
     const noData = document.createElement('p');
     noData.className = 'no-data';
     noData.textContent = 'No meditation sessions yet. Start your first one!';
     container.appendChild(noData);
   } else {
-    // Get the 10 most recent sessions
-    const recentSessions = Store.meditationSessions.slice(0, 10);
+    // Get the most recent sessions
+    const recentSessions = sessions.slice(0, MEDITATION_LIMITS.RECENT_SESSIONS_COUNT);
 
     // Create session list
     const sessionList = document.createElement('div');
@@ -40,7 +43,7 @@ export function renderPastSessionsView(
       sessionItem.className = 'session-item';
 
       const formattedDate = formatSessionDate(session.createdAt);
-      const durationMinutes = Math.round(session.duration / 60);
+      const durationMinutes = secondsToMinutesRounded(session.duration);
 
       sessionItem.textContent = `${formattedDate} - ${durationMinutes} minutes`;
 

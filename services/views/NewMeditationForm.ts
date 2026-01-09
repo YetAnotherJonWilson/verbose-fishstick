@@ -3,8 +3,10 @@
  * Renders the form for starting a new meditation session
  */
 
-import Store from '../Store';
 import { createButton, clearContainer } from '../UIComponents';
+import { PresetData } from '../types';
+import { secondsToMinutes, minutesToSeconds } from '../TimeUtils';
+import { parseIntervalsInput, formatIntervalsForDisplay } from '../IntervalUtils';
 
 interface NewMeditationFormCallbacks {
   onStart: (
@@ -17,6 +19,7 @@ interface NewMeditationFormCallbacks {
 
 export function renderNewMeditationForm(
   container: HTMLElement,
+  presets: PresetData[],
   callbacks: NewMeditationFormCallbacks
 ): void {
   clearContainer(container);
@@ -92,42 +95,34 @@ export function renderNewMeditationForm(
   noneOption.textContent = 'None';
   presetSelect.appendChild(noneOption);
 
-  // Add presets from store
-  Store.presets.forEach((preset) => {
+  // Add presets to dropdown
+  presets.forEach((preset) => {
     const option = document.createElement('option');
     option.value = preset.uri;
 
     // Format intervals for display
     const intervalsText =
       preset.soundIntervals && preset.soundIntervals.length > 0
-        ? ` • Intervals: ${preset.soundIntervals
-            .map((si) => Math.floor(si.time / 60))
-            .join(',')}`
+        ? ` • Intervals: ${formatIntervalsForDisplay(preset.soundIntervals)}`
         : '';
 
-    option.textContent = `${preset.name} (${Math.floor(
-      preset.duration / 60
-    )} min${intervalsText})`;
+    option.textContent = `${preset.name} (${secondsToMinutes(preset.duration)} min${intervalsText})`;
     presetSelect.appendChild(option);
   });
 
   // Handle preset selection
   presetSelect.addEventListener('change', () => {
     if (presetSelect.value) {
-      const selectedPreset = Store.presets.find(
+      const selectedPreset = presets.find(
         (p) => p.uri === presetSelect.value
       );
       if (selectedPreset) {
-        durationInput.value = String(
-          Math.floor(selectedPreset.duration / 60)
-        );
+        durationInput.value = String(secondsToMinutes(selectedPreset.duration));
         if (
           selectedPreset.soundIntervals &&
           selectedPreset.soundIntervals.length > 0
         ) {
-          intervalsInput.value = selectedPreset.soundIntervals
-            .map((si) => Math.floor(si.time / 60))
-            .join(',');
+          intervalsInput.value = formatIntervalsForDisplay(selectedPreset.soundIntervals);
         } else {
           intervalsInput.value = '';
         }
@@ -147,17 +142,8 @@ export function renderNewMeditationForm(
     'Start Meditation',
     'primary',
     async () => {
-      const duration = parseInt(durationInput.value) * 60; // Convert to seconds
-
-      // Parse intervals (comma-separated minutes)
-      const intervals: number[] = [];
-      if (intervalsInput.value.trim()) {
-        const parsed = intervalsInput.value
-          .split(',')
-          .map((s) => parseInt(s.trim()))
-          .filter((n) => !isNaN(n) && n > 0);
-        intervals.push(...parsed);
-      }
+      const duration = minutesToSeconds(parseInt(durationInput.value));
+      const intervals = parseIntervalsInput(intervalsInput.value);
 
       callbacks.onStart(duration, intervals, presetSelect.value || null);
     }

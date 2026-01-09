@@ -14,6 +14,7 @@ import {
   PresetsResponse,
   CreateRecordResponse,
 } from './types';
+import { MEDITATION_LIMITS } from './Constants';
 
 // Helper: Validate session exists
 function ensureSession(): OAuthSession {
@@ -58,8 +59,8 @@ async function createMeditationSession(
     throw new Error('notes must be a string');
   }
 
-  if (notes && notes.length > 1000) {
-    throw new Error('notes cannot exceed 1000 characters');
+  if (notes && notes.length > MEDITATION_LIMITS.MAX_NOTES_LENGTH) {
+    throw new Error(`notes cannot exceed ${MEDITATION_LIMITS.MAX_NOTES_LENGTH} characters`);
   }
 
   // Build record object
@@ -110,8 +111,8 @@ async function createPreset(
     throw new Error('name is required and must be a string');
   }
 
-  if (name.length > 100) {
-    throw new Error('name cannot exceed 100 characters');
+  if (name.length > MEDITATION_LIMITS.MAX_PRESET_NAME_LENGTH) {
+    throw new Error(`name cannot exceed ${MEDITATION_LIMITS.MAX_PRESET_NAME_LENGTH} characters`);
   }
 
   if (typeof duration !== 'number' || duration < 0) {
@@ -209,8 +210,8 @@ async function updateMeditationSession(
     throw new Error('notes must be a string');
   }
 
-  if (notes && notes.length > 1000) {
-    throw new Error('notes cannot exceed 1000 characters');
+  if (notes && notes.length > MEDITATION_LIMITS.MAX_NOTES_LENGTH) {
+    throw new Error(`notes cannot exceed ${MEDITATION_LIMITS.MAX_NOTES_LENGTH} characters`);
   }
 
   // Extract rkey from URI

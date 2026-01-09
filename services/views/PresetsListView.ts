@@ -3,8 +3,8 @@
  * Renders the list of available meditation presets
  */
 
-import Store from '../Store';
 import { createButton, clearContainer } from '../UIComponents';
+import { PresetData } from '../types';
 
 interface PresetsListViewCallbacks {
   onBack: () => void;
@@ -12,6 +12,7 @@ interface PresetsListViewCallbacks {
 
 export function renderPresetsListView(
   container: HTMLElement,
+  presets: PresetData[],
   callbacks: PresetsListViewCallbacks
 ): void {
   clearContainer(container);
@@ -22,7 +23,7 @@ export function renderPresetsListView(
   container.appendChild(title);
 
   // Check if we have presets
-  if (Store.presets.length === 0) {
+  if (presets.length === 0) {
     const noData = document.createElement('p');
     noData.className = 'no-data';
     noData.textContent = 'No presets found. Create one to get started!';
@@ -32,7 +33,7 @@ export function renderPresetsListView(
     const presetList = document.createElement('div');
     presetList.className = 'preset-list';
 
-    Store.presets.forEach((preset) => {
+    presets.forEach((preset) => {
       const presetItem = document.createElement('div');
       presetItem.className = 'preset-item';
 

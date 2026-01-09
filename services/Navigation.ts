@@ -2,33 +2,18 @@
  * Navigation manager for handling view transitions in the meditation app
  */
 
+import Store from './Store';
 import { renderNewMeditationForm } from './views/NewMeditationForm';
 import { renderMeditatingView } from './views/MeditatingView';
 import { renderCompletedMeditationView } from './views/CompletedMeditationView';
 import { renderPresetsListView } from './views/PresetsListView';
 import { renderPastSessionsView } from './views/PastSessionsView';
 
-type ViewName =
-  | 'mainMenu'
-  | 'newMeditation'
-  | 'presets'
-  | 'sessions'
-  | 'meditating'
-  | 'completedMeditation';
-
 export class NavigationManager {
-  private currentView: ViewName = 'mainMenu';
   private meditationCleanup: (() => void) | null = null;
 
   constructor() {
     // Initialize view event listeners if needed
-  }
-
-  /**
-   * Returns the currently active view
-   */
-  getCurrentView(): ViewName {
-    return this.currentView;
   }
 
   /**
@@ -79,7 +64,6 @@ export class NavigationManager {
    * Show the main menu with three action buttons
    */
   showMainMenu(): void {
-    this.currentView = 'mainMenu';
     this.activateView('mainMenuView');
   }
 
@@ -87,13 +71,12 @@ export class NavigationManager {
    * Show the new meditation session form
    */
   showNewMeditationForm(): void {
-    this.currentView = 'newMeditation';
     this.activateView('newMeditationFormView');
 
     const container = document.getElementById('newMeditationFormView');
     if (!container) return;
 
-    renderNewMeditationForm(container, {
+    renderNewMeditationForm(container, Store.presets, {
       onStart: (duration, intervals, presetId) => {
         this.showMeditatingView(duration, intervals, presetId);
       },
@@ -111,7 +94,6 @@ export class NavigationManager {
     intervalsInMinutes: number[] = [],
     presetId: string | null = null
   ): void {
-    this.currentView = 'meditating';
     this.activateView('meditatingView');
 
     const container = document.getElementById('meditatingView');
@@ -139,7 +121,6 @@ export class NavigationManager {
     intervalsInMinutes: number[] = [],
     presetId: string | null = null
   ): Promise<void> {
-    this.currentView = 'completedMeditation';
     this.activateView('completedMeditationView');
 
     const container = document.getElementById('completedMeditationView');
@@ -160,13 +141,12 @@ export class NavigationManager {
    * Show the list of available presets
    */
   async showPresetsList(): Promise<void> {
-    this.currentView = 'presets';
     this.activateView('presetsView');
 
     const container = document.getElementById('presetsView');
     if (!container) return;
 
-    renderPresetsListView(container, {
+    renderPresetsListView(container, Store.presets, {
       onBack: () => {
         this.showMainMenu();
       },
@@ -174,16 +154,15 @@ export class NavigationManager {
   }
 
   /**
-   * Show the list of past meditation sessions (10 most recent)
+   * Show the list of past meditation sessions
    */
   showPastSessions(): void {
-    this.currentView = 'sessions';
     this.activateView('sessionsView');
 
     const container = document.getElementById('sessionsView');
     if (!container) return;
 
-    renderPastSessionsView(container, {
+    renderPastSessionsView(container, Store.meditationSessions, {
       onBack: () => {
         this.showMainMenu();
       },

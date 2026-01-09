@@ -4,6 +4,7 @@
  */
 
 import { storeManager } from '../Store';
+import { toSoundIntervals } from '../IntervalUtils';
 import { createButton, clearContainer } from '../UIComponents';
 import {
   createMeditationSession,
@@ -119,10 +120,7 @@ export async function renderCompletedMeditationView(
       if (presetName && presetName.trim()) {
         try {
           // Convert intervals to soundIntervals format
-          const soundIntervals = intervalsInMinutes.map((min) => ({
-            time: min * 60,
-            soundType: 'gong',
-          }));
+          const soundIntervals = toSoundIntervals(intervalsInMinutes);
 
           await createPreset(
             presetName.trim(),

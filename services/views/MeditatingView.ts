@@ -5,6 +5,7 @@
 
 import { createButton, clearContainer } from '../UIComponents';
 import { playGong } from '../Audio';
+import { formatTime, minutesToSeconds } from '../TimeUtils';
 
 interface MeditatingViewParams {
   durationInSeconds: number;
@@ -51,15 +52,6 @@ export function renderMeditatingView(
   countdown.style.margin = '40px 0';
   countdown.style.textAlign = 'center';
 
-  // Function to format seconds as MM:SS
-  const formatTime = (totalSeconds: number): string => {
-    const minutes = Math.floor(totalSeconds / 60);
-    const seconds = totalSeconds % 60;
-    return `${minutes.toString().padStart(2, '0')}:${seconds
-      .toString()
-      .padStart(2, '0')}`;
-  };
-
   // Initialize countdown display
   let remainingTime = durationInSeconds;
   countdown.textContent = formatTime(remainingTime);
@@ -69,7 +61,7 @@ export function renderMeditatingView(
   playGong();
 
   // Convert interval minutes to seconds and track which have been played
-  const intervalSeconds = intervalsInMinutes.map((min) => min * 60);
+  const intervalSeconds = intervalsInMinutes.map(minutesToSeconds);
   const playedIntervals = new Set<number>();
 
   // Start the countdown

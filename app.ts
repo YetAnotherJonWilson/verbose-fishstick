@@ -1,14 +1,21 @@
-import { getMeditationSessions, getPresets } from './services/API';
-import Store, { storeManager } from './services/Store';
+import Store from './services/Store';
 import { NavigationManager } from './services/Navigation';
 import { createButton } from './services/UIComponents';
+import {
+  showLoadingScreen,
+  showLoginScreen,
+  showAppScreen,
+  showStatus,
+} from './services/UIState';
+import {
+  restoreSession,
+  updateUserInfo,
+  loadUserData,
+} from './services/SessionManager';
 import {
   initOAuthClient,
   signIn,
   signOut,
-  restoreSession as restoreAuthSession,
-  getUserProfile,
-  getSession,
 } from './services/Auth';
 
 // Global variables
@@ -43,7 +50,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     showLoadingScreen();
   }
 
-  await restoreSession();
+  await initializeApp();
 
   // Set up login form event listener
   document
@@ -91,72 +98,33 @@ window.addEventListener('DOMContentLoaded', async () => {
     });
 });
 
-// Restore session from storage
-async function restoreSession(): Promise<void> {
-  try {
-    const result = await restoreAuthSession();
+/**
+ * Initialize the app by restoring session and loading user data
+ */
+async function initializeApp(): Promise<void> {
+  const result = await restoreSession();
 
-    if (result) {
-      showAppScreen();
-      updateUserInfo();
-      await loadUserData();
-      initializeMainMenu();
+  if (result) {
+    showAppScreen();
+    updateUserInfo();
+    await loadUserData();
+    initializeMainMenu();
 
-      if (result.state) {
-        console.log(
-          `${result.session.sub} was successfully authenticated (state: ${result.state})`
-        );
-      } else {
-        console.log(`${result.session.sub} was restored (last active session)`);
-      }
+    if (result.state) {
+      console.log(
+        `${result.session.sub} was successfully authenticated (state: ${result.state})`
+      );
     } else {
-      showLoginScreen();
+      console.log(`${result.session.sub} was restored (last active session)`);
     }
-  } catch (error) {
-    console.error('Session restoration error:', error);
+  } else {
     showLoginScreen();
   }
 }
 
-async function updateUserInfo(): Promise<void> {
-  try {
-    const profile = await getUserProfile();
-
-    const userDisplayNameEl = document.getElementById(
-      'userDisplayName'
-    ) as HTMLElement;
-    const userHandleEl = document.getElementById('userHandle') as HTMLElement;
-    const userDidEl = document.getElementById('userDid') as HTMLElement;
-
-    userDisplayNameEl.textContent = profile.displayName;
-    userHandleEl.textContent = profile.handle;
-    userDidEl.textContent = profile.did;
-  } catch (error) {
-    console.error('Failed to update user info:', error);
-  }
-}
-
-async function loadUserData(): Promise<void> {
-  if (!getSession()) return;
-
-  try {
-    // Fetch meditation sessions and update the Store
-    const sessionsResponse = await getMeditationSessions();
-    storeManager.setMeditationSessions(sessionsResponse.meditationSessions);
-    console.log(
-      `Loaded ${sessionsResponse.meditationSessions.length} meditation sessions`
-    );
-
-    // Fetch presets and update the Store
-    const presetsResponse = await getPresets();
-    storeManager.setPresets(presetsResponse.presets);
-    console.log(`Loaded ${presetsResponse.presets.length} presets`);
-  } catch (error) {
-    const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-    console.error('Failed to load user data:', errorMsg);
-  }
-}
-
+/**
+ * Initialize the main menu with navigation buttons
+ */
 function initializeMainMenu(): void {
   // Initialize navigation manager
   navigationManager = new NavigationManager();
@@ -184,39 +152,4 @@ function initializeMainMenu(): void {
   // Append buttons to container
   menuContainer.appendChild(startMeditationBtn);
   menuContainer.appendChild(viewSessionsBtn);
-}
-
-// UI Helper functions
-function showLoadingScreen(): void {
-  document.getElementById('loadingSection')!.classList.add('active');
-  document.getElementById('loginSection')!.classList.remove('active');
-  document.getElementById('appSection')!.classList.remove('active');
-}
-
-function showLoginScreen(): void {
-  document.getElementById('loadingSection')!.classList.remove('active');
-  document.getElementById('loginSection')!.classList.add('active');
-  document.getElementById('appSection')!.classList.remove('active');
-}
-
-function showAppScreen(): void {
-  document.getElementById('loadingSection')!.classList.remove('active');
-  document.getElementById('loginSection')!.classList.remove('active');
-  document.getElementById('appSection')!.classList.add('active');
-}
-
-function showStatus(
-  elementId: string,
-  message: string,
-  isError: boolean = false
-): void {
-  const statusEl = document.getElementById(elementId) as HTMLElement;
-  statusEl.textContent = message;
-  statusEl.style.display = 'block';
-
-  if (isError) {
-    statusEl.classList.add('error');
-  } else {
-    statusEl.classList.remove('error');
-  }
 }
